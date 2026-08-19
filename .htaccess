@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# If requesting the root URL, rewrite to public/index.html
+RewriteRule ^$ public/index.html [L]
+
+# Serve assets from public/ if requested from root
+RewriteCond %{DOCUMENT_ROOT}/public/$1 -f
+RewriteRule ^(.*)$ public/$1 [L]
