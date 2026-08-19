@@ -1,0 +1,26 @@
+# Temporary & Generated files
+public/uploads/*
+!public/uploads/.gitkeep
+public/output/*
+!public/output/.gitkeep
+data/feedback.json
+
+# Python & PyInstaller artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.spec
+build/
+dist/
+
+# Environment and secrets
+.env
+config.local.php
+*.log
+
+# OS & Editor cache
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
