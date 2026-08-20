@@ -15,6 +15,9 @@ WORKDIR /var/www/html
 
 COPY . /var/www/html/
 
+# Copy custom PHP configuration for large uploads
+COPY custom-php.ini /usr/local/etc/php/conf.d/custom-php.ini
+
 # Install Python packages
 RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt pyinstaller
 

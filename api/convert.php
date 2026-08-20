@@ -1,11 +1,31 @@
 <?php
+// Suppress display of raw HTML warnings
+ini_set('display_errors', '0');
+error_reporting(0);
+
 require_once __DIR__ . '/../config.php';
 
 header('Content-Type: application/json');
 
 try {
+    // Detect if POST exceeded post_max_size
+    if (empty($_FILES) && empty($_POST) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
+        throw new Exception('File upload exceeds server post_max_size limit.');
+    }
+
     if (!isset($_FILES['video_file']) || $_FILES['video_file']['error'] !== UPLOAD_ERR_OK) {
-        throw new Exception('No file uploaded or upload error occurred');
+        $error_code = isset($_FILES['video_file']['error']) ? $_FILES['video_file']['error'] : UPLOAD_ERR_NO_FILE;
+        switch ($error_code) {
+            case UPLOAD_ERR_INI_SIZE:
+            case UPLOAD_ERR_FORM_SIZE:
+                throw new Exception('File exceeds maximum allowed upload size.');
+            case UPLOAD_ERR_PARTIAL:
+                throw new Exception('File was only partially uploaded.');
+            case UPLOAD_ERR_NO_FILE:
+                throw new Exception('No file was uploaded.');
+            default:
+                throw new Exception('Upload error occurred (Code: ' . $error_code . ').');
+        }
     }
     
     $file = $_FILES['video_file'];
@@ -24,7 +44,7 @@ try {
     $input_path = rtrim(UPLOAD_DIR, '/\\') . DIRECTORY_SEPARATOR . $input_name;
     
     if (!move_uploaded_file($file['tmp_name'], $input_path)) {
-        throw new Exception('Failed to save uploaded file');
+        throw new Exception('Failed to save uploaded file.');
     }
     
     $fps = isset($_POST['fps']) ? intval($_POST['fps']) : 10;
