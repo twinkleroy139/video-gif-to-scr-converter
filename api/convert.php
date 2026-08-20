@@ -1,5 +1,4 @@
 <?php
-// Suppress display of raw HTML warnings
 ini_set('display_errors', '0');
 error_reporting(0);
 
@@ -8,7 +7,6 @@ require_once __DIR__ . '/../config.php';
 header('Content-Type: application/json');
 
 try {
-    // Detect if POST exceeded post_max_size
     if (empty($_FILES) && empty($_POST) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0) {
         throw new Exception('File upload exceeds server post_max_size limit.');
     }
@@ -47,8 +45,8 @@ try {
         throw new Exception('Failed to save uploaded file.');
     }
     
-    $fps = isset($_POST['fps']) ? intval($_POST['fps']) : 10;
-    $max_frames = isset($_POST['max_frames']) ? intval($_POST['max_frames']) : 200;
+    $fps = isset($_POST['fps']) ? intval($_POST['fps']) : 15;
+    $max_frames = isset($_POST['max_frames']) ? intval($_POST['max_frames']) : 150;
     $output_name = 'screensaver_' . uniqid();
     
     $is_windows = (PHP_OS_FAMILY === 'Windows');
@@ -76,26 +74,25 @@ try {
     
     if ($return_code !== 0) {
         $error_msg = implode("\n", $output);
-        throw new Exception('Conversion failed: ' . $error_msg);
+        throw new Exception('Conversion execution failed: ' . $error_msg);
     }
     
     $scr_file = $output_target . '.scr';
     if (!file_exists($scr_file)) {
         $files = glob($output_target . '.*');
         if (empty($files)) {
-            throw new Exception('Screensaver file was not created. Logs: ' . implode("\n", $output));
+            throw new Exception('Screensaver generation failed. Logs: ' . implode("\n", $output));
         }
         $scr_file = $files[0];
     }
     
     $file_name = basename($scr_file);
-    $download_url = '/api/download.php?file=' . urlencode($file_name);
     
     echo json_encode([
         'success' => true,
         'message' => 'Conversion completed successfully',
         'file' => $file_name,
-        'download_url' => $download_url,
+        'download_url' => '/api/download.php?file=' . urlencode($file_name),
         'size' => filesize($scr_file)
     ]);
     
@@ -105,4 +102,3 @@ try {
         'error' => $e->getMessage()
     ]);
 }
-?>
