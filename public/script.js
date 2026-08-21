@@ -12,9 +12,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const installInstructions = document.getElementById('installInstructions');
     
     let selectedFile = null;
-    let downloadUrl = null;
+    let directDownloadUrl = null;
     
-    // Drag and drop handlers
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.classList.add('dragover');
@@ -33,6 +32,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    dropZone.addEventListener('click', () => {
+        fileInput.click();
+    });
+
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             handleFile(e.target.files[0]);
@@ -59,7 +62,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector('.drop-zone p').textContent = `✅ ${file.name}`;
         document.querySelector('.sub-text').textContent = `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`;
         
-        // Reset results
         resultSection.style.display = 'none';
         statusSection.style.display = 'none';
     }
@@ -67,14 +69,12 @@ document.addEventListener('DOMContentLoaded', function() {
     convertBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
         
-        // Show status
         statusSection.style.display = 'block';
         statusMessage.textContent = '⏳ Uploading and converting...';
         progressBar.style.width = '30%';
         convertBtn.disabled = true;
         resultSection.style.display = 'none';
         
-        // Prepare form data
         const formData = new FormData();
         formData.append('video_file', selectedFile);
         formData.append('fps', document.getElementById('fps').value);
@@ -95,16 +95,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 progressBar.style.width = '100%';
                 statusMessage.textContent = '✅ Conversion complete!';
                 
-                // Show result
-                downloadUrl = result.download_url;
+                directDownloadUrl = result.download_url;
                 fileName.textContent = `📄 ${result.file}`;
                 fileSize.textContent = `Size: ${(result.size / 1024 / 1024).toFixed(2)} MB`;
                 resultSection.style.display = 'block';
                 
-                // Auto-download after 2 seconds
                 setTimeout(() => {
-                    downloadBtn.click();
-                }, 2000);
+                    if (directDownloadUrl) {
+                        window.location.href = directDownloadUrl;
+                    }
+                }, 1500);
             } else {
                 throw new Error(result.error || 'Conversion failed');
             }
@@ -117,22 +117,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     downloadBtn.addEventListener('click', () => {
-        if (downloadUrl) {
-            const fileName = downloadUrl.split('/').pop();
-            window.location.href = `/api/download.php?file=${fileName}`;
+        if (directDownloadUrl) {
+            window.location.href = directDownloadUrl;
         }
     });
     
     installInstructions.addEventListener('click', () => {
         alert(
-            '📖 How to Install Your Screensaver:\n\n' +
-            '1️⃣ Right-click the downloaded .scr file\n' +
-            '2️⃣ Select "Install" from the context menu\n' +
-            '3️⃣ Go to Settings > Personalization > Lock Screen\n' +
-            '4️⃣ Click on "Screen saver settings"\n' +
-            '5️⃣ Select "One Piece Screensaver" from the dropdown\n' +
-            '6️⃣ Click "Apply" and "OK"\n\n' +
-            '🎬 Your One Piece screensaver is now ready!'
+            '📖 How to Test & Use Your Screensaver:\n\n' +
+            '1️⃣ Double-click the downloaded .scr file to test run immediately.\n' +
+            '2️⃣ Right-click > "Install" to configure it inside Windows.\n' +
+            '3️⃣ Press any key or click the screen to exit.'
         );
     });
 });

@@ -1,10 +1,9 @@
 import os
 import io
 import zipfile
-import shutil
 
 class ScreenSaverGenerator:
-    """Generates portable screensaver package within low-memory limits"""
+    """Generates portable screensaver package with full screensaver argument handling"""
     
     def __init__(self, output_name="screensaver"):
         self.output_name = output_name
@@ -24,21 +23,35 @@ class ScreenSaverGenerator:
         os.makedirs(output_dir, exist_ok=True)
         
         final_scr = os.path.join(output_dir, f"{base_name}.scr")
+        delay_ms = max(20, int(self.metadata.get('frame_delay', 60)))
         
-        # Package frames and config into executable ZIP-embedded wrapper
-        with open(final_scr, 'wb') as f_out:
-            # Write batch bootstrap header so Windows executes directly
-            bootstrap = f"""@echo off
-setlocal
+        # Batch script header handling /s, /c, /p arguments
+        bootstrap = f"""@echo off
+setlocal enabledelayedexpansion
+set "ARG=%~1"
+set "FLAG=!ARG:~0,2!"
+
+if /i "!FLAG!"=="/c" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.Windows.Forms.MessageBox]::Show('ScreenSaverForge: No extra configuration needed.', 'One Piece Screensaver', 0, 64)"
+    exit /b
+)
+
+if /i "!FLAG!"=="/p" (
+    exit /b
+)
+
 set "TEMP_DIR=%TEMP%\\SS_{base_name}"
 if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
-powershell -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('%~f0', '%TEMP_DIR%')" 2>nul
-powershell -Command "$w=New-Object Windows.Forms.Form;$w.WindowState='Maximized';$w.FormBorderStyle='None';$w.BackColor='Black';$p=New-Object Windows.Forms.PictureBox;$p.Dock='Fill';$p.SizeMode='CenterImage';$w.Controls.Add($p);$f=Get-ChildItem '%TEMP_DIR%\\*.jpg'|Sort-Object Name;$i=0;$t=New-Object Windows.Forms.Timer;$t.Interval={self.metadata.get('frame_delay', 60)};$t.add_Tick({{$p.ImageLocation=$f[$i].FullName;$i=($i+1)%%$f.Count}});$t.Start();$w.add_KeyDown({{$w.Close();$t.Stop()}});$w.add_Click({{$w.Close();$t.Stop()}});$p.add_Click({{$w.Close();$t.Stop()}});[Windows.Forms.Application]::Run($w)"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('%~f0', '%TEMP_DIR%')" 2>nul
+
+powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$w=New-Object Windows.Forms.Form;$w.WindowState='Maximized';$w.FormBorderStyle='None';$w.BackColor='Black';$w.TopMost=$true;$p=New-Object Windows.Forms.PictureBox;$p.Dock='Fill';$p.SizeMode='Zoom';$w.Controls.Add($p);$f=Get-ChildItem '%TEMP_DIR%\\*.jpg'|Sort-Object Name;if($f.Count -gt 0){{$i=0;$t=New-Object Windows.Forms.Timer;$t.Interval={delay_ms};$t.add_Tick({{$p.ImageLocation=$f[$i].FullName;$i=($i+1)%%$f.Count}});$t.Start()}};$closeAction={{$t.Stop();$w.Close();[Windows.Forms.Application]::Exit()}};$w.add_KeyDown($closeAction);$w.add_Click($closeAction);$p.add_Click($closeAction);[Windows.Forms.Application]::Run($w)"
 exit /b
 """.encode('ascii')
+
+        with open(final_scr, 'wb') as f_out:
             f_out.write(bootstrap)
             
-            # Append zipped frames
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
                 for idx, frame_bytes in enumerate(self.frames):
