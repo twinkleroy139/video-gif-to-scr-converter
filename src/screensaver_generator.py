@@ -1,9 +1,10 @@
 import os
 import io
-import zipfile
+import json
+import base64
 
 class ScreenSaverGenerator:
-    """Generates portable screensaver package with full screensaver argument handling"""
+    """Generates portable screensaver HTML5 bundle package"""
     
     def __init__(self, output_name="screensaver"):
         self.output_name = output_name
@@ -25,38 +26,59 @@ class ScreenSaverGenerator:
         final_scr = os.path.join(output_dir, f"{base_name}.scr")
         delay_ms = max(20, int(self.metadata.get('frame_delay', 60)))
         
-        # Batch script header handling /s, /c, /p arguments
-        bootstrap = f"""@echo off
-setlocal enabledelayedexpansion
-set "ARG=%~1"
-set "FLAG=!ARG:~0,2!"
+        # Base64 encode all frames to embed cleanly
+        encoded_frames = [base64.b64encode(f).decode('ascii') for f in self.frames]
+        frames_json = json.dumps(encoded_frames)
 
-if /i "!FLAG!"=="/c" (
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.Windows.Forms.MessageBox]::Show('ScreenSaverForge: No extra configuration needed.', 'One Piece Screensaver', 0, 64)"
-    exit /b
-)
-
-if /i "!FLAG!"=="/p" (
-    exit /b
-)
-
-set "TEMP_DIR=%TEMP%\\SS_{base_name}"
-if not exist "%TEMP_DIR%" mkdir "%TEMP_DIR%"
-
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('%~f0', '%TEMP_DIR%')" 2>nul
-
-powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$w=New-Object Windows.Forms.Form;$w.WindowState='Maximized';$w.FormBorderStyle='None';$w.BackColor='Black';$w.TopMost=$true;$p=New-Object Windows.Forms.PictureBox;$p.Dock='Fill';$p.SizeMode='Zoom';$w.Controls.Add($p);$f=Get-ChildItem '%TEMP_DIR%\\*.jpg'|Sort-Object Name;if($f.Count -gt 0){{$i=0;$t=New-Object Windows.Forms.Timer;$t.Interval={delay_ms};$t.add_Tick({{$p.ImageLocation=$f[$i].FullName;$i=($i+1)%%$f.Count}});$t.Start()}};$closeAction={{$t.Stop();$w.Close();[Windows.Forms.Application]::Exit()}};$w.add_KeyDown($closeAction);$w.add_Click($closeAction);$p.add_Click($closeAction);[Windows.Forms.Application]::Run($w)"
+        # Build self-contained HTA/Win32 executable bootstrap
+        hta_payload = f"""<!-- ::
+@echo off
+setlocal
+start "" mshta.exe "%~f0"
 exit /b
-""".encode('ascii')
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Screensaver</title>
+<HTA:APPLICATION 
+    APPLICATIONNAME="ScreenSaverForge"
+    BORDER="none"
+    CAPTION="no"
+    SHOWINTASKBAR="no"
+    SINGLEINSTANCE="yes"
+    WINDOWSTATE="maximize"
+    SCROLL="no">
+<style>
+    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+    body {{ background: black; width: 100vw; height: 100vh; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: none; }}
+    img {{ max-width: 100%; max-height: 100%; object-fit: contain; }}
+</style>
+</head>
+<body onkeydown="window.close()" onclick="window.close()" onmousemove="handleMouseMove(event)">
+    <img id="ss_img" src="data:image/jpeg;base64,{encoded_frames[0]}">
+    <script>
+        var frames = {frames_json};
+        var idx = 0;
+        var imgEl = document.getElementById('ss_img');
+        var moves = 0;
+        
+        function handleMouseMove(e) {{
+            moves++;
+            if (moves > 5) {{ window.close(); }}
+        }}
 
-        with open(final_scr, 'wb') as f_out:
-            f_out.write(bootstrap)
-            
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for idx, frame_bytes in enumerate(self.frames):
-                    zf.writestr(f"frame_{idx:04d}.jpg", frame_bytes)
-            
-            f_out.write(zip_buffer.getvalue())
+        setInterval(function() {{
+            idx = (idx + 1) % frames.length;
+            imgEl.src = "data:image/jpeg;base64," + frames[idx];
+        }}, {delay_ms});
+    </script>
+</body>
+</html>
+"""
+
+        with open(final_scr, 'w', encoding='utf-8') as f:
+            f.write(hta_payload)
             
         return final_scr
