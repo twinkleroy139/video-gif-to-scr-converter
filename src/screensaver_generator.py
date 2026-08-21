@@ -4,7 +4,7 @@ import json
 import base64
 
 class ScreenSaverGenerator:
-    """Generates portable screensaver HTML5 bundle package"""
+    """Generates a standalone Windows Screensaver package with instant launch and installation support"""
     
     def __init__(self, output_name="screensaver"):
         self.output_name = output_name
@@ -26,14 +26,21 @@ class ScreenSaverGenerator:
         final_scr = os.path.join(output_dir, f"{base_name}.scr")
         delay_ms = max(20, int(self.metadata.get('frame_delay', 60)))
         
-        # Base64 encode all frames to embed cleanly
+        # Base64 encode all extracted frames
         encoded_frames = [base64.b64encode(f).decode('ascii') for f in self.frames]
         frames_json = json.dumps(encoded_frames)
 
-        # Build self-contained HTA/Win32 executable bootstrap
-        hta_payload = f"""<!-- ::
+        # Standard Windows Scripting Host / MSHTA Screensaver Engine
+        runner_content = f"""<!-- ::
 @echo off
 setlocal
+if /i "%~1"=="/c" (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.Windows.Forms.MessageBox]::Show('ScreenSaverForge animation running smoothly.', 'Screensaver Info', 0, 64)"
+    exit /b
+)
+if /i "%~1"=="/p" (
+    exit /b
+)
 start "" mshta.exe "%~f0"
 exit /b
 -->
@@ -43,7 +50,7 @@ exit /b
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>Screensaver</title>
 <HTA:APPLICATION 
-    APPLICATIONNAME="ScreenSaverForge"
+    APPLICATIONNAME="OnePieceScreenSaver"
     BORDER="none"
     CAPTION="no"
     SHOWINTASKBAR="no"
@@ -52,26 +59,28 @@ exit /b
     SCROLL="no">
 <style>
     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-    body {{ background: black; width: 100vw; height: 100vh; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: none; }}
+    body {{ background: #000000; width: 100vw; height: 100vh; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: none; }}
     img {{ max-width: 100%; max-height: 100%; object-fit: contain; }}
 </style>
 </head>
-<body onkeydown="window.close()" onclick="window.close()" onmousemove="handleMouseMove(event)">
-    <img id="ss_img" src="data:image/jpeg;base64,{encoded_frames[0]}">
+<body onkeydown="window.close()" onclick="window.close()" onmousemove="detectExit(event)">
+    <img id="display_frame" src="data:image/jpeg;base64,{encoded_frames[0]}">
     <script>
-        var frames = {frames_json};
-        var idx = 0;
-        var imgEl = document.getElementById('ss_img');
-        var moves = 0;
+        var frameData = {frames_json};
+        var currentIdx = 0;
+        var displayImg = document.getElementById('display_frame');
+        var mouseMoveCount = 0;
         
-        function handleMouseMove(e) {{
-            moves++;
-            if (moves > 5) {{ window.close(); }}
+        function detectExit(e) {{
+            mouseMoveCount++;
+            if (mouseMoveCount > 6) {{
+                window.close();
+            }}
         }}
 
         setInterval(function() {{
-            idx = (idx + 1) % frames.length;
-            imgEl.src = "data:image/jpeg;base64," + frames[idx];
+            currentIdx = (currentIdx + 1) % frameData.length;
+            displayImg.src = "data:image/jpeg;base64," + frameData[currentIdx];
         }}, {delay_ms});
     </script>
 </body>
@@ -79,6 +88,6 @@ exit /b
 """
 
         with open(final_scr, 'w', encoding='utf-8') as f:
-            f.write(hta_payload)
+            f.write(runner_content)
             
         return final_scr
