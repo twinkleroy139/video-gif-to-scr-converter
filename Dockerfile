@@ -1,6 +1,6 @@
 FROM php:8.2-apache
 
-# Install Python, OpenGL libraries, and dependencies
+# Install Python, FFmpeg, and MinGW Windows Cross-Compiler
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libgl1 \
     libglx-mesa0 \
     libglib2.0-0 \
+    mingw-w64 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html
@@ -19,7 +20,7 @@ COPY . /var/www/html/
 COPY custom-php.ini /usr/local/etc/php/conf.d/custom-php.ini
 
 # Install Python packages
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt pyinstaller
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Enable Apache rewrite module
 RUN a2enmod rewrite
